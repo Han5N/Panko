@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package panko.bot.v1;
+
+option go_package = "panko/api/gen/bot/v1;botv1";
+
+// BlockPos 使用有符号坐标：基岩版世界高度可能为负。
+message BlockPos {
+  sint32 x = 1;
+  sint32 y = 2;
+  sint32 z = 3;
+}
+
+message Vec3 {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+}
+
+message Block {
+  // 例如 minecraft:stone。
+  string name = 1;
+  // 方块状态，例如 {"facing_direction": "2"}。值统一用字符串表示，
+  // 避免为每种方块定义不同的 schema。
+  map<string, string> states = 2;
+}
+
+message BlockPlacement {
+  BlockPos position = 1;
+  Block block = 2;
+}
+
+message GetBlockRequest {
+  BlockPos position = 1;
+}
+
+message GetBlockResponse {
+  Block block = 1;
+  // 该位置所在区块尚未加载时为 false，此时 block 无意义。
+  bool loaded = 2;
+}
+
+message GetBlocksRequest {
+  repeated BlockPos positions = 1;
+}
+
+message GetBlocksResponse {
+  repeated Block blocks = 1;
+  repeated BlockPos missing = 2;
+}
+
+message Entity {
+  uint64 runtime_id = 1;
+  string type = 2;
+  string name_tag = 3;
+  Vec3 position = 4;
+}
+
+message ListEntitiesRequest {
+  Vec3 center = 1;
+  float radius = 2;
+}
+
+message ListEntitiesResponse {
+  repeated Entity entities = 1;
+}

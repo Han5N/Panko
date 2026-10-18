@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package panko.bot.v1;
+
+import "google/protobuf/timestamp.proto";
+import "bot/v1/world.proto";
+
+option go_package = "panko/api/gen/bot/v1;botv1";
+
+// EventService 以流的形式推送世界变化。seq 全局单调递增，可用于断线回放。
+service EventService {
+  rpc Subscribe(SubscribeRequest) returns (stream Event);
+}
+
+message SubscribeRequest {
+  // 空表示订阅全部已授权 topic。
+  repeated string topics = 1;
+  // 从该序号之后开始推送；0 表示只要新事件。
+  uint64 since_seq = 2;
+}
+
+message Event {
+  uint64 seq = 1;
+  string topic = 2;
+  google.protobuf.Timestamp time = 3;
+
+  oneof payload {
+    ChatEvent chat = 10;
+    BlockEvent block = 11;
+    PlayerEvent player = 12;
+    SessionEvent session = 13;
+  }
+}
+
+message ChatEvent {
+  string sender = 1;
+  string message = 2;
+}
+
+message BlockEvent {
+  BlockPos position = 1;
+  Block before = 2;
+  Block after = 3;
+}
+
+message PlayerEvent {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_JOIN = 1;
+    KIND_LEAVE = 2;
+  }
+  Kind kind = 1;
+  string name = 2;
+  uint64 runtime_id = 3;
+}
+
+message SessionEvent {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_CONNECTED = 1;
+    KIND_DISCONNECTED = 2;
+    // 重连成功后发出。收到后必须丢弃旧的实体 id 与区块缓存并重新拉快照。
+    KIND_RESET = 3;
+  }
+  Kind kind = 1;
+  string reason = 2;
+}

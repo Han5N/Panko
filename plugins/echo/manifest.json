@@ -1,0 +1,11 @@
+{
+  "name": "echo",
+  "version": "0.1.0",
+  "api_version": "v1",
+  "entry": ["python3", "plugin.py"],
+  "description": "聊天回显示例：!echo <文本> 和 !ping",
+  "author": "Panko contributors",
+  "permissions": ["chat.read", "chat.send"],
+  "topics": ["chat"],
+  "auto_start": true
+}

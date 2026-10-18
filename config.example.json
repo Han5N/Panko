@@ -1,0 +1,9 @@
+{
+  "debug": false,
+  "api": { "addr": "127.0.0.1:3030" },
+  "webui": { "addr": "127.0.0.1:3031" },
+  "debug_server": { "addr": "127.0.0.1:3032" },
+  "core": { "addr": "127.0.0.1:3039" },
+  "web_dir": "web",
+  "plugins_dir": "plugins"
+}

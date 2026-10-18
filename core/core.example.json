@@ -1,0 +1,8 @@
+{
+  "core": { "addr": "127.0.0.1:3039" },
+  "session": {
+    "server_address": "sim.local:19132",
+    "player_name": "PankoBot",
+    "protocol_version": 860
+  }
+}

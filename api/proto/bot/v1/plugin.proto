@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package panko.bot.v1;
+
+option go_package = "panko/api/gen/bot/v1;botv1";
+
+// Permission 控制插件能访问的能力。默认全部关闭，由清单显式声明。
+enum Permission {
+  PERMISSION_UNSPECIFIED = 0;
+  PERMISSION_CHAT_READ = 1;
+  PERMISSION_CHAT_SEND = 2;
+  PERMISSION_COMMAND = 3;
+  PERMISSION_WORLD_READ = 4;
+  PERMISSION_WORLD_WRITE = 5;
+  // 收发原始协议包。属于调试能力，默认不授予。
+  PERMISSION_RAW_PACKET = 6;
+}
+
+// PluginManifest 是插件目录下 manifest.json 的结构。
+message PluginManifest {
+  string name = 1;
+  string version = 2;
+  // 插件所依赖的 API 版本，例如 "v1"。
+  string api_version = 3;
+  // 相对于插件目录的入口文件或可执行文件。
+  string entry = 4;
+  string description = 5;
+  string author = 6;
+  repeated Permission permissions = 7;
+}

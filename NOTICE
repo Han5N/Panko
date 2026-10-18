@@ -1,0 +1,32 @@
+Panko
+Copyright (c) 2026 Panko contributors
+
+本软件以 MIT 许可证发布，完整条款见 LICENSE。
+
+---
+
+第三方代码署名
+
+1. NTvector (https://github.com/lurete-cn/NTvector)
+   许可证: MIT
+   版权: Copyright (c) NTvector contributors
+   说明: Panko 的协议层、登录链与连接后端实现参考自 NTvector。凡直接移植
+   的文件，均在该文件头部保留原始版权声明，并在此处集中署名。
+
+2. 随仓库分发的第三方库
+   逐项清单、版本、许可证与修改情况见 THIRD_PARTY_NOTICES.md。
+
+---
+
+独立性声明
+
+本项目未包含 neomega-core、neomega-doc 或 NormaConstructor 的任何源代码或
+文档内容。上述项目的架构思路仅作为设计参考，不构成代码或文档的复制。
+
+---
+
+免责声明
+
+Panko 与网易、Mojang、Microsoft 均无隶属或合作关系。本项目仅用于学习、
+研究与个人自动化场景，使用者应自行遵守游戏服务条款与所在地法律。项目不
+附带任何账号、令牌或认证凭据。

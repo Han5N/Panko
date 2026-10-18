@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  hub:
+    name: hub (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache-dependency-path: go.mod
+      - run: go vet ./...
+      - run: go test ./...
+      - run: go build -o hub-bin${{ matrix.os == 'windows-latest' && '.exe' || '' }} ./hub/cmd/hub
+
+  core:
+    name: core (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: 配置
+        run: cmake -S core -B build -DCMAKE_BUILD_TYPE=Release
+      - name: 构建
+        run: cmake --build build --config Release
+      - name: 测试
+        run: ctest --test-dir build -C Release --output-on-failure

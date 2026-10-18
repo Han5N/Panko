@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panko</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0e0e10;
+    --panel: #16161a;
+    --line: #26262c;
+    --text: #e9e9ee;
+    --muted: #8b8b95;
+    --accent: #7aa2ff;
+    --ok: #4ade80;
+    --warn: #fbbf24;
+    --err: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.6 ui-sans-serif, system-ui, "Segoe UI", "PingFang SC", sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 18px 28px; border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 17px; margin: 0; letter-spacing: .02em; }
+  header .ver { color: var(--muted); font-size: 12px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.online { background: var(--ok); }
+  .dot.offline { background: var(--err); }
+  .dot.connecting { background: var(--warn); }
+  main {
+    display: grid; gap: 18px; padding: 24px 28px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    align-items: start;
+  }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  section {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px 18px;
+  }
+  h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 12px; letter-spacing: .04em; text-transform: uppercase; }
+  .rows { display: grid; gap: 8px; }
+  .row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+  .row span:first-child { color: var(--muted); }
+  .row span:last-child { text-align: right; word-break: break-all; }
+  form { display: flex; gap: 8px; margin-top: 14px; }
+  input[type=text] {
+    flex: 1; min-width: 0; background: #101014; color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; font: inherit;
+  }
+  input[type=text]:focus { outline: none; border-color: #3b4a72; }
+  button {
+    background: #202027; color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 12px; font: inherit; cursor: pointer;
+  }
+  button:hover { border-color: #3b3b46; }
+  button.primary { background: #24314f; border-color: #33456f; }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  li.plugin {
+    display: flex; align-items: center; gap: 10px; justify-content: space-between;
+    padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: #121216;
+  }
+  .plugin .meta { min-width: 0; }
+  .plugin .name { font-size: 13px; }
+  .plugin .sub { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .plugin .actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .badge { font-size: 11px; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+  .badge.running { color: var(--ok); border-color: #245c3b; }
+  .badge.failed { color: var(--err); border-color: #6b2b2b; }
+  .badge.backoff, .badge.starting { color: var(--warn); border-color: #66511c; }
+  #events { max-height: 380px; overflow-y: auto; display: grid; gap: 6px; font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
+  .ev { display: flex; gap: 10px; padding: 6px 8px; border-radius: 6px; background: #121216; }
+  .ev .seq { color: #5b5b66; flex-shrink: 0; }
+  .ev .topic { color: var(--accent); flex-shrink: 0; }
+  .ev .body { color: #c9c9d1; word-break: break-all; }
+  .empty { color: var(--muted); font-size: 13px; }
+  .toast { position: fixed; right: 20px; bottom: 20px; background: #1c1c22; border: 1px solid var(--line); border-radius: 9px; padding: 10px 14px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Panko</h1>
+  <span class="dot" id="dot"></span>
+  <span class="ver" id="stateText">连接中</span>
+  <span class="ver" id="version"></span>
+</header>
+
+<main>
+  <div style="display:grid;gap:18px">
+    <section>
+      <h2>机器人</h2>
+      <div class="rows">
+        <div class="row"><span>核心</span><span id="core">-</span></div>
+        <div class="row"><span>状态</span><span id="botState">-</span></div>
+        <div class="row"><span>玩家</span><span id="player">-</span></div>
+        <div class="row"><span>服务器</span><span id="server">-</span></div>
+        <div class="row"><span>协议</span><span id="protocol">-</span></div>
+      </div>
+      <form id="chatForm">
+        <input id="chatInput" type="text" placeholder="以机器人身份发送聊天..." autocomplete="off">
+        <button class="primary" type="submit">发送</button>
+      </form>
+    </section>
+
+    <section>
+      <h2>插件</h2>
+      <ul id="plugins"><li class="empty">加载中...</li></ul>
+    </section>
+  </div>
+
+  <section>
+    <h2>实时事件</h2>
+    <div id="events"><div class="empty">等待事件...</div></div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function toast(text) {
+  const el = $("toast");
+  el.textContent = text;
+  el.classList.add("show");
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => el.classList.remove("show"), 2200);
+}
+
+async function api(path, options) {
+  const res = await fetch(path, options);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error?.message || res.statusText);
+  }
+  return data;
+}
+
+async function refreshStatus() {
+  try {
+    const st = await api("/api/v1/status");
+    const core = st.core || "offline";
+    $("core").textContent = core;
+    $("botState").textContent = st.state || "offline";
+    $("player").textContent = st.player_name || "-";
+    $("server").textContent = st.server_address || "-";
+    $("protocol").textContent = st.protocol_version || "-";
+
+    const dot = $("dot");
+    dot.className = "dot " + (core === "online" ? "online" : core === "connecting" ? "connecting" : "offline");
+    $("stateText").textContent = core === "online" ? "已连接核心" : core === "connecting" ? "连接核心中" : "核心离线";
+  } catch (err) {
+    $("dot").className = "dot offline";
+    $("stateText").textContent = "控制面不可用";
+  }
+}
+
+async function refreshPlugins() {
+  try {
+    const data = await api("/api/v1/plugins");
+    const list = $("plugins");
+    if (!data.plugins || data.plugins.length === 0) {
+      list.innerHTML = '<li class="empty">没有插件。把插件目录放进 plugins/ 后重启 hub。</li>';
+      return;
+    }
+    list.innerHTML = "";
+    for (const p of data.plugins) {
+      const li = document.createElement("li");
+      li.className = "plugin";
+      li.innerHTML = `
+        <div class="meta">
+          <div class="name">${escapeHtml(p.name)} <span class="badge ${p.state}">${p.state}</span></div>
+          <div class="sub">${escapeHtml(p.description || "")}</div>
+        </div>
+        <div class="actions">
+          <button data-action="start">启动</button>
+          <button data-action="stop">停止</button>
+          <button data-action="restart">重启</button>
+        </div>`;
+      li.querySelectorAll("button").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          try {
+            await api(`/api/v1/plugins/${encodeURIComponent(p.name)}/${btn.dataset.action}`, { method: "POST" });
+            toast(`${p.name}: ${btn.dataset.action}`);
+            setTimeout(refreshPlugins, 300);
+          } catch (err) {
+            toast(err.message);
+          }
+        });
+      });
+      list.appendChild(li);
+    }
+  } catch (err) {
+    $("plugins").innerHTML = `<li class="empty">${escapeHtml(err.message)}</li>`;
+  }
+}
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function addEvent(ev) {
+  const box = $("events");
+  const empty = box.querySelector(".empty");
+  if (empty) empty.remove();
+
+  const row = document.createElement("div");
+  row.className = "ev";
+  row.innerHTML = `<span class="seq">#${ev.seq}</span><span class="topic">${escapeHtml(ev.topic)}</span><span class="body">${escapeHtml(JSON.stringify(ev.payload ?? {}))}</span>`;
+  box.appendChild(row);
+
+  while (box.children.length > 120) box.removeChild(box.firstChild);
+  box.scrollTop = box.scrollHeight;
+}
+
+function connectEvents() {
+  const source = new EventSource("/api/v1/events?since=0");
+  source.addEventListener("message", (e) => {
+    try { addEvent(JSON.parse(e.data)); } catch (_) {}
+  });
+  source.addEventListener("gap", () => toast("事件流存在断档，建议刷新"));
+  source.onerror = () => {
+    $("dot").className = "dot offline";
+  };
+}
+
+$("chatForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const input = $("chatInput");
+  const text = input.value.trim();
+  if (!text) return;
+  try {
+    await api("/api/v1/say", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    input.value = "";
+  } catch (err) {
+    toast(err.message);
+  }
+});
+
+refreshStatus();
+refreshPlugins();
+connectEvents();
+setInterval(refreshStatus, 3000);
+setInterval(refreshPlugins, 5000);
+</script>
+</body>
+</html>
