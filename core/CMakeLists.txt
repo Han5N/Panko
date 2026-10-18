@@ -27,6 +27,11 @@ target_include_directories(panko_core PUBLIC
 
 target_link_libraries(panko_core PUBLIC Threads::Threads)
 
+if(WIN32)
+  # 控制接口使用 Winsock，静态库的使用方也需要链接。
+  target_link_libraries(panko_core PUBLIC ws2_32)
+endif()
+
 add_executable(botd src/main.cpp)
 target_link_libraries(botd PRIVATE panko_core)
 
