@@ -189,4 +189,40 @@ void RequestChunkRadius::encode(Buffer& out) const {
 
 void ChunkRadiusUpdated::decode(Buffer& in) { radius = in.readZigZag32(); }
 
+void SubChunkPacket::decode(Buffer& in) {
+    cache_enabled = in.readU8();
+    dimension = in.readZigZag32();
+    origin_x = in.readZigZag32();
+    origin_y = in.readZigZag32();
+    origin_z = in.readZigZag32();
+    count = in.readU32LE();
+
+    if (count > 1024) {
+        throw ParseError("SubChunk 条目数异常: " + std::to_string(count));
+    }
+
+    entries.reserve(count);
+    for (uint32_t i = 0; i < count; ++i) {
+        SubChunkEntry entry;
+        entry.dx = static_cast<int8_t>(in.readU8());
+        entry.dy = static_cast<int8_t>(in.readU8());
+        entry.dz = static_cast<int8_t>(in.readU8());
+        entry.result = in.readU8();
+
+        uint32_t payload_size = in.readVarUInt();
+        entry.payload = in.readBytes(payload_size);
+
+        uint8_t heightmap_type = in.readU8();
+        if (heightmap_type == 1) {
+            in.skip(256);
+        }
+        uint8_t render_heightmap_type = in.readU8();
+        if (render_heightmap_type == 1) {
+            in.skip(256);
+        }
+
+        entries.push_back(std::move(entry));
+    }
+}
+
 }  // namespace panko::protocol

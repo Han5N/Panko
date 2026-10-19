@@ -1,5 +1,9 @@
 #include "bot/session.h"
 
+#include <algorithm>
+
+#include "world/block_registry.h"
+
 #include <chrono>
 #include <cstdio>
 #include <ctime>
@@ -56,6 +60,7 @@ void Session::start() {
         if (state_ == "online" || state_ == "connecting") return;
         state_ = "online";
         online_since_ = unixNow();
+        seedWorld();
     }
 
     emit("session", {{"kind", "connected"},
@@ -114,17 +119,33 @@ nlohmann::json Session::command(const std::string& command) {
 }
 
 nlohmann::json Session::block(int x, int y, int z) const {
-    std::string name = "minecraft:air";
-    if (y < 63) {
-        name = "minecraft:stone";
-    } else if (y == 63) {
-        name = "minecraft:grass_block";
+    uint32_t hash = 0;
+    if (!chunks_.blockAt(x, y, z, hash)) {
+        return {
+            {"loaded", false},
+            {"position", {{"x", x}, {"y", y}, {"z", z}}},
+        };
+    }
+
+    BlockState state;
+    if (!lookupBlockHash(hash, state)) {
+        state.name = "minecraft:unknown";
+        state.states = "{}";
+    }
+
+    nlohmann::json states = nlohmann::json::object();
+    if (!state.states.empty()) {
+        try {
+            states = nlohmann::json::parse(state.states);
+        } catch (const std::exception&) {
+            states = nlohmann::json::object();
+        }
     }
 
     return {
         {"loaded", true},
         {"position", {{"x", x}, {"y", y}, {"z", z}}},
-        {"block", {{"name", name}, {"states", nlohmann::json::object()}}},
+        {"block", {{"name", state.name}, {"states", std::move(states)}}},
     };
 }
 
@@ -169,12 +190,16 @@ nlohmann::json Session::place(const nlohmann::json& blocks) {
         int y = pos.value("y", 0);
         int z = pos.value("z", 0);
         auto before = block(x, y, z);
+        nlohmann::json before_block =
+            before.contains("block") ? before["block"]
+                                     : nlohmann::json{{"name", "minecraft:air"},
+                                                      {"states", nlohmann::json::object()}};
         std::string name = "minecraft:stone";
         if (item.contains("block") && item["block"].is_object()) {
             name = item["block"].value("name", name);
         }
         emit("block", {{"position", {{"x", x}, {"y", y}, {"z", z}}},
-                       {"before", before["block"]},
+                       {"before", before_block},
                        {"after", {{"name", name}, {"states", nlohmann::json::object()}}}});
         ++accepted;
     }
@@ -206,6 +231,29 @@ std::vector<Event> Session::replay(uint64_t since) const {
         if (ev.seq > since) out.push_back(ev);
     }
     return out;
+}
+
+void Session::seedWorld() {
+    // 模拟世界：0..3 段为石头，y=63 一层草方块。真实连接接入后由 SubChunk
+    // 数据填充同一个 ChunkStore。
+    constexpr uint32_t kStone = 0x80310e21;
+    constexpr uint32_t kGrass = 0xde3128b4;
+
+    for (int sy = 0; sy <= 3; ++sy) {
+        SubChunkSection section;
+        section.has_y_index = true;
+        section.y_index = sy;
+        section.blocks.assign(4096, kStone);
+
+        if (sy == 3) {
+            for (int x = 0; x < 16; ++x) {
+                for (int z = 0; z < 16; ++z) {
+                    section.blocks[static_cast<size_t>(x * 256 + z * 16 + 15)] = kGrass;
+                }
+            }
+        }
+        chunks_.applySection(0, sy, 0, section);
+    }
 }
 
 uint64_t Session::lastSeq() const {

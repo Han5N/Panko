@@ -112,6 +112,43 @@ bool   unlimit
 如果后续要做命令块，必须注意 1.21.120 的 `filtered_name` 字段：它位于
 `name` 之后、`should_track_output` 之前。缺失会导致服务端解析越界并踢人。
 
+## SubChunk(174)
+
+```
+u8        cache 是否启用
+varint    维度（zigzag）
+varint    origin x / y / z（zigzag，段坐标）
+u32 小端  条目数
+每条目：
+  i8 dx, i8 dy, i8 dz
+  u8 结果
+  varuint 载荷长度 + 载荷
+  u8 高度图类型（1 时跟 256 字节）
+  u8 渲染高度图类型（1 时跟 256 字节）
+```
+
+子区块载荷：
+
+```
+u8    格式版本（8 或 9）
+u8    层数
+v9 时 u8 y_index（有符号）
+每层：
+  u8 头字节：bits = 头 >> 1，network = 头 & 1
+  bits > 0 时：ceil(4096 / (32/bits)) 个 u32 小端索引字
+  zigzag 调色板大小
+  若干 zigzag 32 位方块哈希
+  bits == 0 时：一个 zigzag 哈希，无索引与调色板
+```
+
+两个容易写反的地方：
+
+1. **索引在调色板之前**。常见实现是调色板在前，网易版的数据是反过来的。
+2. 方块下标是 `x*256 + z*16 + y`，不是 `y*256 + z*16 + x`。
+
+方块哈希是 name 与 states 的 little-endian NBT 编码的 FNV-1a32。哈希表来自
+NTvector 的 `BlockRegistry.h`（MIT），已在本仓库中作为静态数据分发。
+
 ## 压缩
 
 `NetworkSettings.compression_algorithm == 1` 表示 snappy。阈值通常为 512，
@@ -119,7 +156,7 @@ bool   unlimit
 
 ## 尚未覆盖
 
-- 区块与子区块的完整解析（palette、heightmap、biome）
+- 高度图与生物群系数据
 - 实体元数据与属性
 - 网易私有的 Rotor / RC4 与反作弊 RPC 握手
 - NetherNet 信令

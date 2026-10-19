@@ -178,6 +178,36 @@ TEST_CASE(network_settings_decode) {
     CHECK(packet.client_throttle_scalar == 1.0f);
 }
 
+TEST_CASE(subchunk_packet_decode) {
+    Buffer body;
+    body.writeU8(0);          // cache 关闭
+    body.writeZigZag32(0);    // 维度
+    body.writeZigZag32(0);    // origin x
+    body.writeZigZag32(0);    // origin y
+    body.writeZigZag32(3);    // origin z
+    body.writeU32LE(1);       // 条目数
+    body.writeU8(0);          // dx
+    body.writeU8(0xFF);       // dy = -1
+    body.writeU8(0);          // dz
+    body.writeU8(1);          // result = success
+    std::vector<uint8_t> payload = {9, 1, 3, 2};
+    body.writeVarUInt(static_cast<uint32_t>(payload.size()));
+    body.writeBytes(payload);
+    body.writeU8(0);          // 无高度图
+    body.writeU8(0);          // 无渲染高度图
+
+    SubChunkPacket packet;
+    packet.decode(body);
+
+    CHECK_EQ(packet.dimension, 0);
+    CHECK_EQ(packet.origin_z, 3);
+    CHECK_EQ(packet.count, 1u);
+    CHECK_EQ(packet.entries.size(), size_t{1});
+    CHECK_EQ(packet.entries[0].dy, int8_t{-1});
+    CHECK_EQ(packet.entries[0].result, uint8_t{1});
+    CHECK_EQ(packet.entries[0].payload.size(), size_t{4});
+}
+
 TEST_CASE(chunk_radius_roundtrip) {
     RequestChunkRadius request;
     request.radius = 8;

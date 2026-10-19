@@ -12,6 +12,12 @@
 
 namespace {
 
+#if defined(PANKO_VERSION)
+constexpr const char* kVersion = PANKO_VERSION;
+#else
+constexpr const char* kVersion = "dev";
+#endif
+
 volatile std::sig_atomic_t g_stop = 0;
 
 void onSignal(int) { g_stop = 1; }
@@ -40,6 +46,10 @@ int main(int argc, char** argv) {
     std::string config_path = "core.json";
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
+        if (arg == "--version" || arg == "-v") {
+            std::printf("Panko botd %s\n", kVersion);
+            return 0;
+        }
         if ((arg == "--config" || arg == "-c") && i + 1 < argc) {
             config_path = argv[++i];
         }
@@ -86,7 +96,7 @@ int main(int argc, char** argv) {
 
     std::this_thread::sleep_for(std::chrono::milliseconds(120));
 
-    logLine("Panko botd 启动");
+    logLine("Panko botd " + std::string(kVersion) + " 启动");
     logLine("控制接口: tcp://" + addr);
     logLine("会话模式: 内置模拟（真实 RakNet 登录尚未接入）");
 

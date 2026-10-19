@@ -71,8 +71,14 @@ TEST_CASE(session_block_query) {
     CHECK(ground["loaded"].get<bool>());
     CHECK_EQ(ground["block"]["name"], std::string("minecraft:grass_block"));
 
-    auto air = session.block(0, 200, 0);
-    CHECK_EQ(air["block"]["name"], std::string("minecraft:air"));
+    auto stone = session.block(0, 10, 0);
+    CHECK(stone["loaded"].get<bool>());
+    CHECK_EQ(stone["block"]["name"], std::string("minecraft:stone"));
+
+    // 未加载的段不返回方块，避免把“没数据”误报成空气。
+    auto unloaded = session.block(0, 200, 0);
+    CHECK(!unloaded["loaded"].get<bool>());
+    CHECK(!unloaded.contains("block"));
 }
 
 TEST_CASE(session_place_emits_block_events) {

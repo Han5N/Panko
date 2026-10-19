@@ -9,6 +9,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include "world/chunk_store.h"
+
 namespace panko {
 
 struct Event {
@@ -44,6 +46,7 @@ public:
 
 private:
     void emit(const std::string& topic, nlohmann::json payload);
+    void seedWorld();
 
     mutable std::mutex mu_;
     std::string server_address_;
@@ -54,6 +57,7 @@ private:
     uint64_t seq_ = 0;
     std::deque<Event> ring_;
     EventSink sink_;
+    ChunkStore chunks_;
 };
 
 int64_t unixNow();

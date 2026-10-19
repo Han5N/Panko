@@ -201,4 +201,26 @@ struct ChunkRadiusUpdated : Packet {
     void decode(Buffer& in) override;
 };
 
+// SubChunk 是网易版按需返回区块段的方式，一次可携带多个段。
+struct SubChunkEntry {
+    int8_t dx = 0;
+    int8_t dy = 0;
+    int8_t dz = 0;
+    uint8_t result = 0;
+    std::vector<uint8_t> payload;
+};
+
+struct SubChunkPacket : Packet {
+    uint8_t cache_enabled = 0;
+    int32_t dimension = 0;
+    int32_t origin_x = 0;
+    int32_t origin_y = 0;
+    int32_t origin_z = 0;
+    uint32_t count = 0;
+    std::vector<SubChunkEntry> entries;
+
+    uint32_t id() const override { return kSubChunk; }
+    void decode(Buffer& in) override;
+};
+
 }  // namespace panko::protocol

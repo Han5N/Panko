@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build (${{ matrix.suffix }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            suffix: linux-amd64
+            hub_asset: panko-hub-linux-amd64
+            core_asset: panko-botd-linux-amd64
+          - os: windows-latest
+            suffix: windows-amd64
+            hub_asset: panko-hub-windows-amd64.exe
+            core_asset: panko-botd-windows-amd64.exe
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache-dependency-path: go.mod
+
+      - name: 计算版本
+        id: version
+        shell: bash
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: 构建 hub
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          go build -trimpath \
+            -ldflags "-s -w -X main.version=$VERSION" \
+            -o "${{ matrix.hub_asset }}" ./hub/cmd/hub
+
+      - name: 构建 botd
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          cmake -S core -B build -DCMAKE_BUILD_TYPE=Release -DPANKO_VERSION="$VERSION"
+          cmake --build build --config Release
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cp build/Release/botd.exe "${{ matrix.core_asset }}"
+          else
+            cp build/botd "${{ matrix.core_asset }}"
+          fi
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.suffix }}
+          path: |
+            ${{ matrix.hub_asset }}
+            ${{ matrix.core_asset }}
+          if-no-files-found: error
+
+  release:
+    name: 创建预发布
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: 发布
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Panko $GITHUB_REF_NAME" \
+            --prerelease \
+            --latest=false \
+            --generate-notes

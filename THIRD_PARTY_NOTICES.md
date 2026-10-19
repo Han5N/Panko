@@ -7,7 +7,7 @@
 
 | 组件 | 版本 | 许可证 | 是否修改 | 链接方式 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| NTvector | 协议版本 860 | MIT | 是（移植） | 源码 | 协议层与登录链来源，保留原版权头 |
+| NTvector | 协议版本 860 | MIT | 是（移植） | 源码 | 协议层与登录链来源；方块哈希表已作为静态数据引入 |
 | OpenSSL | 3.5.0 | Apache-2.0 | 否 | 静态 | 需保留 LICENSE 与 NOTICE |
 | libwebsockets | 4.5 | MIT（含少数 BSD-3/BSD-2/zlib/OFL 文件） | 否 | 静态 | 被保留的例外文件见其 LICENSE |
 | libdatachannel | 随仓库快照 | MPL-2.0 | 否 | 静态 | MPL 为文件级 copyleft，修改过的文件必须公开 |
