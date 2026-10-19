@@ -10,20 +10,8 @@ permissions:
 
 jobs:
   build:
-    name: build (${{ matrix.suffix }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            suffix: linux-amd64
-            hub_asset: panko-hub-linux-amd64
-            core_asset: panko-botd-linux-amd64
-          - os: windows-latest
-            suffix: windows-amd64
-            hub_asset: panko-hub-windows-amd64.exe
-            core_asset: panko-botd-windows-amd64.exe
+    name: build (windows-amd64)
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -44,28 +32,24 @@ jobs:
         run: |
           go build -trimpath \
             -ldflags "-s -w -X main.version=$VERSION" \
-            -o "${{ matrix.hub_asset }}" ./hub/cmd/hub
+            -o panko-hub-windows-amd64.exe ./hub/cmd/hub
 
       - name: 构建 botd
         shell: bash
         env:
           VERSION: ${{ steps.version.outputs.value }}
         run: |
-          cmake -S core -B build -DCMAKE_BUILD_TYPE=Release -DPANKO_VERSION="$VERSION"
+          cmake -S core -B build -A x64 -DPANKO_VERSION="$VERSION"
           cmake --build build --config Release
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            cp build/Release/botd.exe "${{ matrix.core_asset }}"
-          else
-            cp build/botd "${{ matrix.core_asset }}"
-          fi
+          cp build/Release/botd.exe panko-botd-windows-amd64.exe
 
       - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.suffix }}
+          name: windows-amd64
           path: |
-            ${{ matrix.hub_asset }}
-            ${{ matrix.core_asset }}
+            panko-hub-windows-amd64.exe
+            panko-botd-windows-amd64.exe
           if-no-files-found: error
 
   release:

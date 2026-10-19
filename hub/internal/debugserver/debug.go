@@ -1,10 +1,14 @@
 // Package debugserver 提供仅在本机监听的调试接口：SSE 实时日志与健康检查。
+// 它既可以在 hub 进程内使用，也可以作为独立子进程运行（见 cmd/hub 的
+// --internal-debug 模式）。
 package debugserver
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -71,12 +75,12 @@ func (h *LogHub) unsubscribe(ch chan string) {
 func Handler(hub *LogHub, version string) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		fmt.Fprintf(w, `{"status":"ok","service":"panko-debug","version":%q}`, version)
 	})
 
-	mux.HandleFunc("/logs", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /logs", func(w http.ResponseWriter, r *http.Request) {
 		flusher, ok := w.(http.Flusher)
 		if !ok {
 			http.Error(w, "当前连接不支持流式响应", http.StatusInternalServerError)
@@ -114,6 +118,42 @@ func Handler(hub *LogHub, version string) http.Handler {
 	})
 
 	return mux
+}
+
+// Run 以子进程模式运行：从 stdin 读取日志行，在 addr 上提供 SSE。
+// stdin 关闭（父进程退出）时自动停止并返回。
+func Run(addr, version string) error {
+	hub := NewLogHub()
+
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           Handler(hub, version),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.ListenAndServe()
+	}()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		scanner := bufio.NewScanner(os.Stdin)
+		scanner.Buffer(make([]byte, 64*1024), 1<<20)
+		for scanner.Scan() {
+			hub.Broadcast(scanner.Text())
+		}
+	}()
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-done:
+		// 父进程关闭了 stdin，正常退出。
+		_ = server.Close()
+		return nil
+	}
 }
 
 // 确保 LogHub 在编译期满足 io.Writer。

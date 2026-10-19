@@ -19,6 +19,7 @@ import (
 	"panko/hub/internal/apiserver"
 	"panko/hub/internal/config"
 	"panko/hub/internal/coreclient"
+	"panko/hub/internal/debugchild"
 	"panko/hub/internal/debugserver"
 	"panko/hub/internal/events"
 	"panko/hub/internal/plugin"
@@ -28,6 +29,11 @@ import (
 var version = "dev"
 
 func main() {
+	// 调试服务以独立进程运行，由 hub 用同一个可执行文件重新拉起。
+	if len(os.Args) > 1 && os.Args[1] == debugchild.InternalFlag {
+		os.Exit(runDebugChild(os.Args[2:]))
+	}
+
 	configPath := flag.String("config", "config.json", "配置文件路径")
 	flag.Parse()
 
@@ -35,6 +41,20 @@ func main() {
 		fmt.Fprintf(os.Stderr, "panko hub 退出: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// runDebugChild 是调试子进程的入口：从 stdin 接收日志并在本地提供 SSE。
+func runDebugChild(args []string) int {
+	fs := flag.NewFlagSet("panko-debug", flag.ContinueOnError)
+	addr := fs.String("addr", "127.0.0.1:3032", "调试服务监听地址")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if err := debugserver.Run(*addr, version); err != nil {
+		fmt.Fprintf(os.Stderr, "调试服务退出: %v\n", err)
+		return 1
+	}
+	return 0
 }
 
 func run(configPath string) error {
@@ -51,11 +71,28 @@ func run(configPath string) error {
 		cfg.PluginsDir = filepath.Join(baseDir, cfg.PluginsDir)
 	}
 
-	logHub := debugserver.NewLogHub()
-	logger := log.New(io.MultiWriter(os.Stdout, logHub), "", log.LstdFlags)
+	baseLogger := log.New(os.Stdout, "", log.LstdFlags)
+
+	// 调试服务是独立进程：hub 只负责喂日志和守护，它崩溃不会影响主进程。
+	var debugSup *debugchild.Supervisor
+	logWriter := io.Writer(os.Stdout)
+	if cfg.Debug {
+		exe, err := os.Executable()
+		if err != nil {
+			return fmt.Errorf("定位 hub 可执行文件失败: %w", err)
+		}
+		debugSup = debugchild.New(exe, cfg.DebugServer.Addr, baseLogger)
+		logWriter = io.MultiWriter(os.Stdout, debugSup)
+	}
+
+	logger := log.New(logWriter, "", log.LstdFlags)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	if debugSup != nil {
+		go debugSup.Run()
+	}
 
 	bus := events.New(2048)
 	client := coreclient.New(cfg.Core.Addr, bus, logger)
@@ -77,7 +114,7 @@ func run(configPath string) error {
 	logger.Printf("核心接口:   tcp://%s", cfg.Core.Addr)
 	logger.Printf("插件目录:   %s", cfg.PluginsDir)
 	if cfg.Debug {
-		logger.Printf("调试服务:   http://%s/logs（SSE）", cfg.DebugServer.Addr)
+		logger.Printf("调试服务:   http://%s/logs（SSE，独立进程）", cfg.DebugServer.Addr)
 	}
 
 	// 关闭服务时取消该 context，让 SSE 等长连接立即退出，而不是等 Shutdown 超时。
@@ -104,15 +141,6 @@ func run(configPath string) error {
 		},
 	}
 
-	if cfg.Debug {
-		servers = append(servers, &http.Server{
-			Addr:              cfg.DebugServer.Addr,
-			Handler:           debugserver.Handler(logHub, version),
-			ReadHeaderTimeout: 5 * time.Second,
-			BaseContext:       func(net.Listener) context.Context { return baseCtx },
-		})
-	}
-
 	errCh := make(chan error, len(servers))
 	for _, server := range servers {
 		go func(s *http.Server) {
@@ -131,6 +159,9 @@ func run(configPath string) error {
 	}
 
 	cancelBase()
+	if debugSup != nil {
+		debugSup.Stop()
+	}
 	host.StopAll()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

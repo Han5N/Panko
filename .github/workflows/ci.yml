@@ -7,12 +7,8 @@ on:
 
 jobs:
   hub:
-    name: hub (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
+    name: hub
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -21,19 +17,15 @@ jobs:
           cache-dependency-path: go.mod
       - run: go vet ./...
       - run: go test ./...
-      - run: go build -o hub-bin${{ matrix.os == 'windows-latest' && '.exe' || '' }} ./hub/cmd/hub
+      - run: go build -o hub-bin.exe ./hub/cmd/hub
 
   core:
-    name: core (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
+    name: core
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - name: 配置
-        run: cmake -S core -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S core -B build -A x64
       - name: 构建
         run: cmake --build build --config Release
       - name: 测试

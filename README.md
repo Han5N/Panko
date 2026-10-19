@@ -30,7 +30,7 @@ Panko 将机器人拆成两层：C++ 编写的协议核心 `botd` 负责连接�
 - **世界数据层**：方块哈希表、子区块解码、区块存储与坐标查询
 - **协议工具链**：二进制缓冲、数据包编解码、单元测试与协议笔记
 - **本地优先**：所有端口默认绑定回环地址，调试日志按需开启
-- **跨平台构建**：Windows 与 Linux 均通过 CI 验证
+- **Windows 构建**：CI 覆盖构建与单元测试
 
 ## 架构
 
@@ -40,7 +40,7 @@ Panko 将机器人拆成两层：C++ 编写的协议核心 `botd` 负责连接�
       ▼
    hub (Go)  ── 127.0.0.1:3030  API
       │      ── 127.0.0.1:3031  WebUI
-      │      ── 127.0.0.1:3032  调试日志 SSE
+      │      ── 127.0.0.1:3032  调试日志 SSE（独立子进程）
       │  TCP + 行分隔 JSON
       ▼
    botd (C++) ── 127.0.0.1:3039  内部接口
@@ -68,25 +68,25 @@ Panko 将机器人拆成两层：C++ 编写的协议核心 `botd` 负责连接�
 | Go | 1.24+ |
 | CMake | 3.20+ |
 | C++ 编译器 | 支持 C++20（MSVC 2022 / GCC 11+ / Clang 14+） |
-| 操作系统 | Windows 10+、Linux x86_64 |
+| 操作系统 | Windows 10 / 11（x64） |
 
 ## 快速开始
 
-```bash
+```powershell
 # 构建控制面
-go build -o hub-bin ./hub/cmd/hub
+go build -o hub-bin.exe ./hub/cmd/hub
 
 # 构建协议核心
-cmake -S core -B build -DCMAKE_BUILD_TYPE=Release
+cmake -S core -B build -A x64
 cmake --build build --config Release
 
 # 准备配置
-cp config.example.json config.json
-cp core/core.example.json core.json
+Copy-Item config.example.json config.json
+Copy-Item core\core.example.json core.json
 
 # 启动
-./build/botd --config core.json
-./hub-bin -config config.json
+.\build\Release\botd.exe --config core.json
+.\hub-bin.exe -config config.json
 ```
 
 打开 <http://127.0.0.1:3031> 即可看到运行状态、插件列表与实时事件。
@@ -184,7 +184,7 @@ WebUI 通过 `/api/*` 同源代理访问 API，无需额外配置 CORS。
 
 ## 开发
 
-```bash
+```powershell
 # Go
 go vet ./...
 go test ./...
